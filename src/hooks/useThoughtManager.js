@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // Configuration
-const API_URL = 'http://localhost:3000/api/records';
+const API_URL = import.meta.env.VITE_API_URL || 'https://cloudkeep-server.onrender.com/api/records';
 
 export function useThoughtManager() {
   // --- Global State ---
