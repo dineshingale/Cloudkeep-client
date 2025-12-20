@@ -15,7 +15,7 @@ export default function LandingPage({ onLogin }) {
             <polyline points="2 17 12 22 22 17" />
             <polyline points="2 12 12 17 22 12" />
           </svg>
-          <span className="text-xl font-bold tracking-tight text-slate-900">ThoughtFlow</span>
+          <span className="text-xl font-bold tracking-tight text-slate-900">Cloudkeep</span>
         </div>
         <button className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
           About

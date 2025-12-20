@@ -19,7 +19,7 @@ export default function Navbar({
           <polyline points="2 17 12 22 22 17" />
           <polyline points="2 12 12 17 22 12" />
         </svg>
-        <span className="hidden md:block font-bold text-slate-800 tracking-tight">ThoughtFlow</span>
+        <span className="hidden md:block font-bold text-slate-800 tracking-tight">Cloudkeep</span>
       </div>
       
       {/* Search Bar */}
