@@ -14,13 +14,7 @@ import LandingPage from './components/LandingPage';
 
 export default function App() {
   // --- 1. Auth Hook (Real Firebase) ---
-  const { 
-    user, 
-    isAuthLoading, 
-    authError, 
-    signInWithGoogle, 
-    logout 
-  } = useAuth();
+  const { user, isAuthLoading, authError, signInWithGoogle, logout } = useAuth();
 
   // --- 2. Thought Manager Hook ---
   const {
@@ -38,7 +32,7 @@ export default function App() {
     addEditNote, handleEditFile, updateEditNote, removeEditBlock,
     startRenaming, saveRename,
     deleteThought
-  } = useThoughtManager();
+  } = useThoughtManager(user);
 
   // --- 3. LOADING STATE (While Firebase checks session) ---
   if (isAuthLoading) {

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 // Configuration
 const API_URL = import.meta.env.VITE_API_URL || 'https://cloudkeep-server.onrender.com/api/records';
 
-export function useThoughtManager() {
+export function useThoughtManager(user) {
   // --- Global State ---
   const [isCreating, setIsCreating] = useState(false);
   const [thoughts, setThoughts] = useState([]);
@@ -26,15 +26,23 @@ export function useThoughtManager() {
   // ==========================================
   
   useEffect(() => {
-    fetchThoughts();
-  }, []);
+    if (user) {
+      fetchThoughts();
+    } else {
+      setThoughts([]); // Clear thoughts if no user is logged in
+    }
+  }, [user]);
 
   const fetchThoughts = async () => {
+    if (!user) return;
+
     try {
       setIsLoading(true);
-      console.log("Fetching thoughts from:", API_URL); 
+      console.log("Fetching thoughts for user:", user.uid); 
       
-      const response = await fetch(API_URL);
+      // UPDATED: Include userId in the query string
+      const response = await fetch(`${API_URL}?userId=${user.uid}`);
+      
       if (!response.ok) throw new Error('Failed to fetch');
       
       const json = await response.json(); 
@@ -99,9 +107,16 @@ export function useThoughtManager() {
   // --- SEND DATA TO SERVER ---
   const postThought = async () => {
     if (draftBlocks.length === 0) return;
+    if (!user) {
+        console.error("User not authenticated");
+        return;
+    }
 
     try {
         const formData = new FormData();
+        
+        // UPDATED: Append userId to FormData
+        formData.append('userId', user.uid); 
         formData.append('title', "My Thought"); 
 
         const textContent = draftBlocks
@@ -149,7 +164,7 @@ export function useThoughtManager() {
     setEditBlocks([]);
   };
 
-  // UPDATED: Save Content Edits
+  // Save Content Edits
   const saveEdit = async () => {
     try {
         // Reconstruct the text body from the blocks
@@ -211,7 +226,7 @@ export function useThoughtManager() {
     setRenameText(thought.title);
   };
 
-  // UPDATED: Save Rename
+  // Save Rename
   const saveRename = async () => {
     if (!renamingId) return;
 
