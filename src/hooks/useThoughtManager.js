@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 
 // Configuration
-const API_URL = import.meta.env.VITE_API_URL || 'https://cloudkeep-server.onrender.com/api/records';
+// -----------------------------------------------------------------------------
+// AUTOMATIC SWITCH:
+// 1. If running locally (npm run dev), use localhost:3000
+// 2. If deployed (on Vercel/Render), use your live Render Backend
+// -----------------------------------------------------------------------------
+const API_URL = import.meta.env.MODE === 'development' 
+  ? 'http://localhost:3000/api/records'
+  : 'https://cloudkeep-server.onrender.com/api/records';
 
+  
 export function useThoughtManager(user) {
   // --- Global State ---
   const [isCreating, setIsCreating] = useState(false);
@@ -40,7 +48,7 @@ export function useThoughtManager(user) {
       setIsLoading(true);
       console.log("Fetching thoughts for user:", user.uid); 
       
-      // UPDATED: Include userId in the query string
+      // Correct: Includes userId in query
       const response = await fetch(`${API_URL}?userId=${user.uid}`);
       
       if (!response.ok) throw new Error('Failed to fetch');
@@ -115,7 +123,7 @@ export function useThoughtManager(user) {
     try {
         const formData = new FormData();
         
-        // UPDATED: Append userId to FormData
+        // Correct: Appends userId to FormData
         formData.append('userId', user.uid); 
         formData.append('title', "My Thought"); 
 
@@ -167,20 +175,22 @@ export function useThoughtManager(user) {
   // Save Content Edits
   const saveEdit = async () => {
     try {
-        // Reconstruct the text body from the blocks
         const textContent = editBlocks
             .filter(b => b.type === 'note')
             .map(b => b.content)
             .join('\n');
 
+        // --- UPDATED: Sending userId in body ---
         const response = await fetch(`${API_URL}/${editingId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ body: textContent })
+            body: JSON.stringify({ 
+                body: textContent,
+                userId: user.uid // <--- ADDED for Security
+            })
         });
 
         if (response.ok) {
-            // Update local state to reflect changes immediately
             setThoughts(prev => prev.map(t => 
                 t.id === editingId ? { ...t, blocks: editBlocks } : t
             ));
@@ -233,10 +243,14 @@ export function useThoughtManager(user) {
     try {
         const newTitle = renameText.trim() || "Untitled Thought";
 
+        // --- UPDATED: Sending userId in body ---
         const response = await fetch(`${API_URL}/${renamingId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: newTitle })
+            body: JSON.stringify({ 
+                title: newTitle,
+                userId: user.uid // <--- ADDED for Security
+            })
         });
 
         if (response.ok) {
@@ -261,8 +275,13 @@ export function useThoughtManager(user) {
     if (!window.confirm("Are you sure you want to delete this thought?")) return;
 
     try {
+        // --- UPDATED: Sending userId in body ---
+        // DELETE requests usually don't have bodies, but Express supports it.
+        // We add headers to ensure the server parses the JSON.
         const response = await fetch(`${API_URL}/${thoughtId}`, {
             method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.uid }) // <--- ADDED for Security
         });
 
         if (response.ok) {
