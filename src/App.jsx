@@ -20,6 +20,7 @@ export default function App() {
   const {
     isCreating,
     searchQuery, setSearchQuery,
+    searchMode, setSearchMode, isAiSearching, // New props
     filteredThoughts,
     draftBlocks,
     editingId,
@@ -49,7 +50,7 @@ export default function App() {
       <>
         {/* Pass the real Firebase signIn function here */}
         <LandingPage onLogin={signInWithGoogle} />
-        
+
         {/* Simple Error Toast if redirect fails */}
         {authError && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-100 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm shadow-lg animate-in fade-in slide-in-from-bottom-2">
@@ -63,20 +64,23 @@ export default function App() {
   // --- 5. MAIN APP (If logged in) ---
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-800 flex flex-col items-center pb-20">
-      
-      <Navbar 
+
+      <Navbar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        searchMode={searchMode}        // Pass MODE
+        setSearchMode={setSearchMode}  // Pass SETTER
+        isAiSearching={isAiSearching}  // Pass LOADING state
         startCreating={startCreating}
-        user={user}         // Pass Real Firebase User
-        onLogout={logout}   // Pass Real Logout
+        user={user}
+        onLogout={logout}
       />
 
       <main className="mt-20 w-full max-w-xl px-4 flex flex-col items-center gap-6">
-        
+
         {/* Creation Card */}
         {isCreating && (
-          <CreateThought 
+          <CreateThought
             draftBlocks={draftBlocks}
             addDraftNote={addDraftNote}
             handleDraftFile={handleDraftFile}
@@ -89,7 +93,7 @@ export default function App() {
 
         {/* Timeline Feed */}
         <div className="w-full flex flex-col gap-6 pb-10">
-          
+
           <div className="flex items-center justify-between px-2 text-slate-500">
             <span className="text-xs font-bold uppercase tracking-widest">
               {searchQuery ? 'Search Results' : 'Your Timeline'}
@@ -108,7 +112,7 @@ export default function App() {
           )}
 
           {filteredThoughts.map(thought => (
-            <ThoughtCard 
+            <ThoughtCard
               key={thought.id}
               thought={thought}
               editingId={editingId}
