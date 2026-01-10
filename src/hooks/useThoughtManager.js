@@ -6,17 +6,22 @@ import { useState, useEffect } from 'react';
 // 1. If running locally (npm run dev), use localhost:3000
 // 2. If deployed (on Vercel/Render), use your live Render Backend
 // -----------------------------------------------------------------------------
-const API_URL = import.meta.env.MODE === 'development' 
+const API_URL = import.meta.env.MODE === 'development'
   ? 'http://localhost:3000/api/records'
   : 'https://cloudkeep-server.onrender.com/api/records';
 
-  
+
 export function useThoughtManager(user) {
   // --- Global State ---
   const [isCreating, setIsCreating] = useState(false);
   const [thoughts, setThoughts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
+
+  // --- Search Mode State ---
+  const [searchMode, setSearchMode] = useState('standard'); // 'standard' | 'ai'
+  const [aiResults, setAiResults] = useState([]);
+  const [isAiSearching, setIsAiSearching] = useState(false);
 
   // --- Creation Mode State ---
   const [draftBlocks, setDraftBlocks] = useState([]);
@@ -32,7 +37,7 @@ export function useThoughtManager(user) {
   // ==========================================
   // 0. SERVER CONNECTION (Fetch Data)
   // ==========================================
-  
+
   useEffect(() => {
     if (user) {
       fetchThoughts();
@@ -46,23 +51,22 @@ export function useThoughtManager(user) {
 
     try {
       setIsLoading(true);
-      console.log("Fetching thoughts for user:", user.uid); 
-      
-      // Correct: Includes userId in query
+      console.log("Fetching thoughts for user:", user.uid);
+
       const response = await fetch(`${API_URL}?userId=${user.uid}`);
-      
+
       if (!response.ok) throw new Error('Failed to fetch');
-      
-      const json = await response.json(); 
-      const records = json.data || []; 
-      
+
+      const json = await response.json();
+      const records = json.data || [];
+
       const formattedThoughts = records.map(record => ({
-        id: record._id, 
+        id: record._id,
         title: record.title || "Untitled",
         timestamp: new Date(record.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         blocks: [
-            ...(record.fileUrl ? [{ id: 'img-'+record._id, type: 'media', content: record.fileUrl }] : []),
-            ...(record.body ? [{ id: 'txt-'+record._id, type: 'note', content: record.body }] : [])
+          ...(record.fileUrl ? [{ id: 'img-' + record._id, type: 'media', content: record.fileUrl }] : []),
+          ...(record.body ? [{ id: 'txt-' + record._id, type: 'note', content: record.body }] : [])
         ]
       }));
 
@@ -71,6 +75,60 @@ export function useThoughtManager(user) {
       console.error("Error loading thoughts:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // AI SEARCH LOGIC
+  // ==========================================
+
+  // Debounce API calls
+  useEffect(() => {
+    if (searchMode !== 'ai' || !searchQuery.trim()) {
+      setAiResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      performAISearch();
+    }, 600); // Wait 600ms after typing stops
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchMode]);
+
+  const performAISearch = async () => {
+    if (!user || !searchQuery.trim()) return;
+
+    try {
+      setIsAiSearching(true);
+      // Uses the new /search-ai endpoint
+      // Replaces /api/record with /api/records/search-ai because API_URL is .../records
+      const searchUrl = `${API_URL}/search-ai?userId=${user.uid}&query=${encodeURIComponent(searchQuery)}`;
+
+      const response = await fetch(searchUrl);
+      if (!response.ok) throw new Error("Search failed");
+
+      const json = await response.json();
+      const records = json.data || [];
+
+      // Format same as fetchThoughts
+      const formattedResults = records.map(record => ({
+        id: record._id,
+        title: record.title || "Untitled",
+        // Show score if available for debugging
+        timestamp: `Match: ${Math.round((record.score || 0) * 100)}%`,
+        blocks: [
+          ...(record.fileUrl ? [{ id: 'img-' + record._id, type: 'media', content: record.fileUrl }] : []),
+          ...(record.body ? [{ id: 'txt-' + record._id, type: 'note', content: record.body }] : [])
+        ]
+      }));
+
+      setAiResults(formattedResults);
+
+    } catch (err) {
+      console.error("AI Search Error:", err);
+    } finally {
+      setIsAiSearching(false);
     }
   };
 
@@ -93,11 +151,11 @@ export function useThoughtManager(user) {
     const file = event.target.files[0];
     if (file) {
       const objectUrl = URL.createObjectURL(file);
-      const newBlock = { 
-        id: Date.now().toString(), 
-        type: 'media', 
+      const newBlock = {
+        id: Date.now().toString(),
+        type: 'media',
         content: objectUrl,
-        file: file 
+        file: file
       };
       setDraftBlocks(prev => [newBlock, ...prev]);
     }
@@ -116,44 +174,44 @@ export function useThoughtManager(user) {
   const postThought = async () => {
     if (draftBlocks.length === 0) return;
     if (!user) {
-        console.error("User not authenticated");
-        return;
+      console.error("User not authenticated");
+      return;
     }
 
     try {
-        const formData = new FormData();
-        
-        // Correct: Appends userId to FormData
-        formData.append('userId', user.uid); 
-        formData.append('title', "My Thought"); 
+      const formData = new FormData();
 
-        const textContent = draftBlocks
-            .filter(b => b.type === 'note')
-            .map(b => b.content)
-            .join('\n');
-        
-        formData.append('body', textContent);
+      // Correct: Appends userId to FormData
+      formData.append('userId', user.uid);
+      formData.append('title', "My Thought");
 
-        const mediaBlock = draftBlocks.find(b => b.type === 'media' && b.file);
-        if (mediaBlock) {
-            formData.append('file', mediaBlock.file);
-        }
+      const textContent = draftBlocks
+        .filter(b => b.type === 'note')
+        .map(b => b.content)
+        .join('\n');
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: formData, 
-        });
+      formData.append('body', textContent);
 
-        if (response.ok) {
-            await fetchThoughts(); 
-            setDraftBlocks([]);
-            setIsCreating(false);
-        } else {
-            console.error("Failed to save thought. Status:", response.status);
-        }
+      const mediaBlock = draftBlocks.find(b => b.type === 'media' && b.file);
+      if (mediaBlock) {
+        formData.append('file', mediaBlock.file);
+      }
+
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        await fetchThoughts();
+        setDraftBlocks([]);
+        setIsCreating(false);
+      } else {
+        console.error("Failed to save thought. Status:", response.status);
+      }
 
     } catch (error) {
-        console.error("Error posting thought:", error);
+      console.error("Error posting thought:", error);
     }
   };
 
@@ -162,8 +220,8 @@ export function useThoughtManager(user) {
   // ==========================================
   const startEditing = (thought) => {
     setEditingId(thought.id);
-    setEditBlocks([...thought.blocks]); 
-    setIsCreating(false); 
+    setEditBlocks([...thought.blocks]);
+    setIsCreating(false);
     setRenamingId(null);
   };
 
@@ -175,32 +233,32 @@ export function useThoughtManager(user) {
   // Save Content Edits
   const saveEdit = async () => {
     try {
-        const textContent = editBlocks
-            .filter(b => b.type === 'note')
-            .map(b => b.content)
-            .join('\n');
+      const textContent = editBlocks
+        .filter(b => b.type === 'note')
+        .map(b => b.content)
+        .join('\n');
 
-        // --- UPDATED: Sending userId in body ---
-        const response = await fetch(`${API_URL}/${editingId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                body: textContent,
-                userId: user.uid // <--- ADDED for Security
-            })
-        });
+      // --- UPDATED: Sending userId in body ---
+      const response = await fetch(`${API_URL}/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          body: textContent,
+          userId: user.uid // <--- ADDED for Security
+        })
+      });
 
-        if (response.ok) {
-            setThoughts(prev => prev.map(t => 
-                t.id === editingId ? { ...t, blocks: editBlocks } : t
-            ));
-            setEditingId(null);
-            setEditBlocks([]);
-        } else {
-            console.error("Failed to save edit");
-        }
+      if (response.ok) {
+        setThoughts(prev => prev.map(t =>
+          t.id === editingId ? { ...t, blocks: editBlocks } : t
+        ));
+        setEditingId(null);
+        setEditBlocks([]);
+      } else {
+        console.error("Failed to save edit");
+      }
     } catch (error) {
-        console.error("Error saving edit:", error);
+      console.error("Error saving edit:", error);
     }
   };
 
@@ -241,28 +299,28 @@ export function useThoughtManager(user) {
     if (!renamingId) return;
 
     try {
-        const newTitle = renameText.trim() || "Untitled Thought";
+      const newTitle = renameText.trim() || "Untitled Thought";
 
-        // --- UPDATED: Sending userId in body ---
-        const response = await fetch(`${API_URL}/${renamingId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                title: newTitle,
-                userId: user.uid // <--- ADDED for Security
-            })
-        });
+      // --- UPDATED: Sending userId in body ---
+      const response = await fetch(`${API_URL}/${renamingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle,
+          userId: user.uid // <--- ADDED for Security
+        })
+      });
 
-        if (response.ok) {
-            setThoughts(prev => prev.map(t => 
-                t.id === renamingId ? { ...t, title: newTitle } : t
-            ));
-            setRenamingId(null);
-        } else {
-            console.error("Failed to save rename");
-        }
+      if (response.ok) {
+        setThoughts(prev => prev.map(t =>
+          t.id === renamingId ? { ...t, title: newTitle } : t
+        ));
+        setRenamingId(null);
+      } else {
+        console.error("Failed to save rename");
+      }
     } catch (error) {
-        console.error("Error saving rename:", error);
+      console.error("Error saving rename:", error);
     }
   };
 
@@ -275,37 +333,41 @@ export function useThoughtManager(user) {
     if (!window.confirm("Are you sure you want to delete this thought?")) return;
 
     try {
-        // --- UPDATED: Sending userId in body ---
-        // DELETE requests usually don't have bodies, but Express supports it.
-        // We add headers to ensure the server parses the JSON.
-        const response = await fetch(`${API_URL}/${thoughtId}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.uid }) // <--- ADDED for Security
-        });
+      // --- UPDATED: Sending userId in body ---
+      // DELETE requests usually don't have bodies, but Express supports it.
+      // We add headers to ensure the server parses the JSON.
+      const response = await fetch(`${API_URL}/${thoughtId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid }) // <--- ADDED for Security
+      });
 
-        if (response.ok) {
-            setThoughts(prev => prev.filter(t => t.id !== thoughtId));
-            if (editingId === thoughtId) cancelEdit();
-        } else {
-            console.error("Failed to delete thought on server");
-        }
+      if (response.ok) {
+        setThoughts(prev => prev.filter(t => t.id !== thoughtId));
+        if (editingId === thoughtId) cancelEdit();
+      } else {
+        console.error("Failed to delete thought on server");
+      }
     } catch (error) {
-        console.error("Error deleting thought:", error);
+      console.error("Error deleting thought:", error);
     }
   };
 
-  const filteredThoughts = thoughts.filter(thought => {
-    const searchLower = searchQuery.toLowerCase();
-    if (thought.title.toLowerCase().includes(searchLower)) return true;
-    return thought.blocks.some(block => 
-      block.type === 'note' && block.content.toLowerCase().includes(searchLower)
-    );
-  });
+  const filteredThoughts = (searchMode === 'ai' && searchQuery)
+    ? aiResults
+    : thoughts.filter(thought => {
+      const searchLower = searchQuery.toLowerCase();
+      if (thought.title.toLowerCase().includes(searchLower)) return true;
+      return thought.blocks.some(block =>
+        block.type === 'note' && block.content.toLowerCase().includes(searchLower)
+      );
+    });
 
   return {
     isCreating, isLoading,
     searchQuery, setSearchQuery,
+    searchMode, setSearchMode, isAiSearching, // EXPORT NEW STATE
+    filteredThoughts,
     filteredThoughts,
     draftBlocks,
     editingId, editBlocks,
