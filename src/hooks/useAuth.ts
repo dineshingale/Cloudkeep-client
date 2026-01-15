@@ -16,6 +16,20 @@ export function useAuth() {
 
     // 1. Listen for Auth State Changes
     useEffect(() => {
+        // --- TEST MODE BYPASS ---
+        // Allows Playwright to inject a fake user without hitting Google Auth
+        const testUserStr = window.localStorage.getItem('TEST_USER');
+        if (testUserStr) {
+            try {
+                const testUser = JSON.parse(testUserStr);
+                setUser(testUser);
+                setIsAuthLoading(false);
+                return;
+            } catch (e) {
+                console.error("Failed to parse TEST_USER", e);
+            }
+        }
+
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setIsAuthLoading(false);
