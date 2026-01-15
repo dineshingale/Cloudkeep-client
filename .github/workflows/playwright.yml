@@ -34,3 +34,24 @@ jobs:
         name: playwright-report
         path: playwright-report/
         retention-days: 30
+
+    - name: Send Failure Email
+      uses: dawidd6/action-send-mail@v3
+      if: failure()
+      with:
+        server_address: smtp.gmail.com
+        server_port: 465
+        username: ${{ secrets.MAIL_USERNAME }}
+        password: ${{ secrets.MAIL_PASSWORD }}
+        subject: "🚨 Playwright Tests Failed: ${{ github.repository }}"
+        to: dineshingale2003@gmail.com
+        from: Cloudkeep CI <${{ secrets.MAIL_USERNAME }}>
+        body: |
+          The E2E tests for ${{ github.repository }} have failed.
+          
+          Run ID: ${{ github.run_id }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          
+          View Report and Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
